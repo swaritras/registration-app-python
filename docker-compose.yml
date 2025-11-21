@@ -1,6 +1,15 @@
 version: "3.8"
 
 services:
+  pubsub-emulator:
+    image: google/cloud-sdk:latest
+    container_name: pubsub_emulator
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+    environment:
+      - CLOUDSDK_PYTHON=python3
+
   web:
     build: .
     container_name: registration_web
@@ -9,24 +18,30 @@ services:
       - "8000:8000"
     environment:
       - ENV=production
-      # If using Google service account file (Firestore), mount it and set GOOGLE_APPLICATION_CREDENTIALS
-      # - GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT=local-project
+      - EMAIL_TOPIC=email-topic
+    depends_on:
+      - pubsub-emulator
+    
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import sys, socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1",8000))' || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; \
+resp=urllib.request.urlopen('http://127.0.0.1:8000/health'); \
+sys.exit(0) if resp.getcode()==200 else sys.exit(1)\""]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   worker:
     build: .
     container_name: registration_worker
     restart: always
-    # Override the default CMD to run the worker script
     command: ["python", "worker/worker.py"]
     environment:
-      # Example environment variables your worker might need. Set them in .env or here.
-      # - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
-      # - FIRESTORE_COLLECTION=registrations
-    # If worker needs the web to be up first for any reason, you can keep depends_on
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT=local-project
+      - EMAIL_TOPIC=email-topic
+      - EMAIL_SUBSCRIPTION=email-subscription
     depends_on:
+      - pubsub-emulator
       - web

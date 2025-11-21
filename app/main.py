@@ -1,13 +1,17 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, EmailStr
 from app.firestore_client import create_user_doc
-from app.emailer import init_db, enqueue_email
+from app.emailer import enqueue_email
 from app.config import Config
 
 app = FastAPI(title="Registration Demo")
 
-init_db(Config.JOB_DB)
 
+
+@app.get('/health', tags=['health'])
+async def health():
+    """Health endpoint for readiness/liveness checks."""
+    return {'status': 'ok'}
 class RegisterRequest(BaseModel):
     display_name: str | None = None
     email: EmailStr
