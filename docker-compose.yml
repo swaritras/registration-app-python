@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    container_name: registration_web
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      # If using Google service account file (Firestore), mount it and set GOOGLE_APPLICATION_CREDENTIALS
+      # - GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import sys, socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1",8000))' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    container_name: registration_worker
+    restart: always
+    # Override the default CMD to run the worker script
+    command: ["python", "worker/worker.py"]
+    environment:
+      # Example environment variables your worker might need. Set them in .env or here.
+      # - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      # - FIRESTORE_COLLECTION=registrations
+    # If worker needs the web to be up first for any reason, you can keep depends_on
+    depends_on:
+      - web
